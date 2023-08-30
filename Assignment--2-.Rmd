@@ -1,0 +1,657 @@
+---
+title: "Assignment"
+author: "Group 5"
+date: "2023-04-10"
+output:
+  html_document:
+    
+    toc: yes
+    toc_depth: 4
+    df_print: paged
+  pdf_document:
+    
+    toc: yes
+    toc_depth: 4
+  html_notebook:
+    toc: yes
+    toc_float: yes
+    toc_depth: 4
+---
+
+```{r setup, include=FALSE}
+library(corrplot)
+library(randomForest)
+h1 = read.table("Hotel Booking Dataset/H1.csv", sep = ",", header = TRUE)
+h2 = read.table("Hotel Booking Dataset/H2.csv", sep = ",", header = TRUE)
+h1$Hotel = "Resort Hotel"
+h2$Hotel = "City Hotel"
+hotel = rbind(h1,h2)
+str(hotel)
+set.seed(100)
+```
+
+# 1 Introduction
+This data article describes two datasets with hotel demand data. One of the hotels (H1) is a resort hotel and the other is a city hotel (H2). Both datasets share the same structure, with 31 variables describing the 40,060 observations of H1 and 79,330 observations of H2. Each observation represents a hotel booking. Both datasets comprehend bookings due to arrive between the 1st of July of 2015 and the 31st of August 2017, including bookings that effectively arrived and bookings that were canceled. Since this is hotel real data, all data elements pertaining hotel or costumer identification were deleted.
+
+# 2 Dataset Description
+ 
+The dataset used in this analysis is obtained from the website https://www.sciencedirect.com/science/article/pii/S2352340918315191 and is related to hotel bookings. The dataset contains information about various aspects of hotel bookings, including booking dates, customer demographics, booking channels, hotel features, and booking outcomes. The dataset is intended for analysis and research purposes in the field of hotel bookings.
+
+After merging and cleaning the two datasets, we acquired a more diverse dataset for analysis. All columns retrieved from the dataset are relevant variables that can be used for our analysis. Thereafter, the dataset “hotel” contains 119386 observations with 32 variables is retained for analysis. The variables are:
+
+1. "IsCanceled": Indicates if the booking was canceled (1) or not (0).
+2. "LeadTime": Number of days between the booking date and the arrival date.
+3. "ArrivalDateYear": Year of the arrival date.
+4. "ArrivalDateMonth": Month of the arrival date.
+5. "ArrivalDateWeekNumber": Week number of the arrival date.
+6. "ArrivalDateDayOfMonth": Day of the month of the arrival date.
+7. "StaysInWeekendNights": Number of weekend nights (Saturday or Sunday) the guest stayed or booked to stay at the hotel.
+8. "StaysInWeekNights": Number of weekday (Monday to Friday) nights the guest stayed or booked to stay at the hotel.
+9. "Adults": Number of adults in the booking.
+10. "Children": Number of children in the booking.
+11. "Babies": Number of babies in the booking.
+12. "Meal": Type of meal booked.
+13. "Country": Country of origin of the guest.
+14. "MarketSegment": Market segment designation for the booking.
+15. "DistributionChannel": Booking distribution channel.
+16. "IsRepeatedGuest": Indicates if the guest has stayed at the hotel before (1) or not (0).
+17. "PreviousCancellations": Number of previous booking cancellations.
+18. "PreviousBookingsNotCanceled": Number of previous bookings not canceled by the guest.
+19. "ReservedRoomType": Code of room type reserved by the guest.
+20. "AssignedRoomType": Code for the type of room assigned to the booking.
+21. "BookingChanges": Number of changes/amendments made to the booking from the initial reservation to the time of arrival.
+22. "DepositType": Type of deposit made by the guest.
+23. "Agent": ID of the travel agency that made the booking.
+24. "Company": ID of the company/entity that made the booking or responsible for paying the booking.
+25. "DaysInWaitingList": Number of days the booking was in the waiting list before it was confirmed to the guest.
+26. "CustomerType": Type of booking made by the customer.
+27. "ADR": Average Daily Rate as defined by dividing the sum of all lodging transactions by the total number of staying nights.
+28. "RequiredCarParkingSpaces": Number of car parking spaces required by the guest.
+29. "TotalOfSpecialRequests": Number of special requests made by the guest (e.g. bed preferences, high floor, etc.).
+30. "ReservationStatus": Last status of the booking.
+31. "ReservationStatusDate": Date at which the last status was set.
+32. "Hotel": Type of hotel (City hotel or Resort hotel).
+
+Given a presence of variables in the dataset, we have selected a subset of the most significant ones for analysis. Before proceeding with the data analysis, we first performed the following preliminary data modification and cleansing:	
+
+- Rows with NA are removed (removed 4 rows) 
+- Converted all the variables with data type of Character to Factor 
+- Combined the variables “Children” and “Babies” to one variable, “Children”
+- Compared and combined the variables “ReservedRoomType” and “AssignedRoomType” to one variable,  “RoomTypeMatch”, which indicates 1 if the room type matched, and 0 otherwise
+
+
+After the preliminary selection and modification mentioned above, the dataset “hotel_data” contains 119,386 observations with 14 variables for analysis. In particular, we will use 13 variables to analyse our variable of interest, IsCanceled. Below is a list of variables contained in the dataset, and an overview of the dataset structure:
+
+1. “IsCanceled”: Indicates if the booking was canceled (1) or not (0).
+2. “LeadTime”: Number of days between the booking date and the arrival date.
+3. “ArrivalDateMonth”: Month of the arrival date.
+4. “StaysInWeekendNights”: Number of weekend nights (Saturday or Sunday) the guest stayed or booked to stay at the hotel.
+5. “StaysInWeekNights”: Number of weekday nights (Monday to Friday) the guest stayed or booked to stay at the hotel.
+6. “Adults”: Number of adults in the booking.
+“7. Children”: Number of children in the booking.
+8. “IsRepeatedGuest”: Indicates if the guest has stayed at the hotel before (1) or not (0).
+9. “PreviousCancellations”: Number of previous booking cancellations.
+10. “PreviousBookingsNotCanceled”: Number of previous bookings not canceled by the guest.
+11. “BookingChanges”: Number of changes/amendments made to the booking from the initial reservation to the time of arrival.
+12. “ADR”:  Average Daily Rate as defined by dividing the sum of all lodging transactions by the total number of staying nights (we ignore the duplicated rows due to the nature of booking being possibly duplicated).
+13. “Hotel”: Type of hotel, either resort hotel (RH) or city hotel (CH)
+14. “RoomTypeMatch”: Indicates if reserved room type is the same as assigned room type (1) or not (0).
+
+
+```{r cleanup, echo = FALSE}
+hotel_data = subset(hotel, select = c(IsCanceled,LeadTime, ArrivalDateMonth, StaysInWeekendNights,
+                                      StaysInWeekNights, Adults, Children, Babies, IsRepeatedGuest,
+                                      PreviousCancellations, PreviousBookingsNotCanceled,
+                                      ReservedRoomType, AssignedRoomType, BookingChanges, ADR, Hotel))
+hotel_data=na.omit(hotel_data)
+hotel_data$Children = hotel_data$Children + hotel_data$Babies
+hotel_data$RoomTypeMatch <- ifelse(hotel_data$ReservedRoomType == hotel_data$AssignedRoomType, 1, 0)
+hotel_data = subset(hotel_data, select = -c(Babies, AssignedRoomType, ReservedRoomType))
+hotel_data = data.frame(lapply(hotel_data, function(x) if(is.character(x)) factor(x) else x))
+hotel_data$RoomTypeMatch = as.factor(hotel_data$RoomTypeMatch)
+hotel_data$IsRepeatedGuest = as.factor(hotel_data$IsRepeatedGuest)
+hotel_data$IsCanceled = as.factor(hotel_data$IsCanceled)
+hotel_data$Hotel = as.factor(hotel_data$Hotel)
+str(hotel_data)
+```
+
+
+
+
+
+# 3 Visualisation of Dataset
+In this section, we will conduct a detailed analysis of the data and elaborate on our findings. We will examine and visualise each variable individually to detect any potential outliers. Furthermore, for highly skewed data, we will perform appropriate transformations to ensure a more symmetrical distribution, making it suitable for statistical tests that assume normality.
+
+## 3.1 Summary Statistics for Main Variable of Interest (IsCanceled)
+The bar plot below shows the overall distribution of our main variable is_canceled, together with a table that shows the whether a reservation is canceled.
+```{r is_canceled, echo = FALSE}
+par(mfrow=c(1,2))
+hist(as.numeric(hotel_data$IsCanceled), breaks = 2, main="Barplot of IsCanceled", col = "cyan", xlab = "IsCanceled")
+table(hotel_data$IsCanceled)
+44220/119386
+
+```
+0 indicates a booking is not canceled, and 1 indicates a booking is canceled. It appears that the rate of cancellation is around 37%, which is relatively high.
+
+## 3.2 Summary Statistics for Other Variables
+
+The remaining variables are investigated individually by first applying transformation when applicable, followed by identification and removal of possible outliers to avoid highly skewed data. The transformation (if applicable), histogram, boxplot, and the number of outliers removed from each variable are tabulated and illustrated in the following subsections below
+
+### 3.2.1 Hotel Type
+To better understand the hotel type and their rate of cancellation, a rate table is calculated, together with a bar chart to show the value for each hotel.
+
+```{r hotel type, echo=FALSE}
+ctable = table(hotel_data$Hotel, hotel_data$IsCanceled)
+for(row in 1:2){
+  row_sum = sum(ctable[row,])
+  for(col in 1:2){
+    ctable[row,col] = ctable[row,col]/row_sum
+  }
+}
+colnames(ctable) = c("Not Canceled", "Canceled")
+ctable
+
+#ctable
+par(mfrow=c(1,2))
+barplot(ctable[1,], col = 'blue', xlab = "City Hotel")
+barplot(ctable[2,], col = 'cyan', xlab = "Resort Hotel")
+par(mfrow=c(1,1))
+```
+
+There seems to be a higher rate of cancellation for city hotels compared to resort hotel with about 41% cancellation from city hotel and 28% cancellation from resort hotel.
+
+
+### 3.2.2 Arrival Date Month
+```{r Arrival Date Month, echo=FALSE}
+par(mfrow=c(1,1))
+hotel_data$ArrivalDateMonth = factor(hotel_data$ArrivalDateMonth, levels = c("January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"))
+ctable = table(hotel_data$IsCanceled, hotel_data$ArrivalDateMonth)
+barplot(ctable, legend.text = c("Not Canceled", "Canceled"), beside = TRUE, col = c("cyan", "blue"))
+
+```
+
+- We observe that July and August are the peak sessions for hotel bookings, while December and January are the off-peak sessions.
+- The months with the highest number of cancellations are May, July, and August, and the months with the lowest number of cancellations are November, December, and January.
+- Additionally, we observe that in general, the number of cancellations appears to be much lesser than the total number of non-cancellations.
+
+
+### 3.2.3 Stays In Weekend Nights
+```{r Stays In Weekend Nights, echo=FALSE}
+
+par(mfrow=c(1,2))
+hist(hotel_data$StaysInWeekendNights, main = "Histogram of Stays In Weekend Nights", xlab = "Stays In Weekend Nights", col="cyan")
+boxplot(hotel_data$StaysInWeekendNights, main = "Boxplot of Stays In Weekend Nights", xlab = "Stays In Weekend Nights", col="cyan")
+table(hotel_data$StaysInWeekendNights)
+hotel_data = hotel_data[-head(order(-hotel_data$StaysInWeekendNights),5),]
+hotel_data$StaysInWeekendNights = sqrt(hotel_data$StaysInWeekendNights)
+```
+
+- There appears to be right skewness in StaysInWeekendNights
+- Most of the guests have 0-2 weekend night stays
+- Due to the presence of 0 in the data, log transformation isn’t applied 
+- Square root transformation was used
+- 5 extreme outliers (>15) are removed 
+ 
+### 3.2.4 Stays In Week Nights
+```{r Stays In Week Nights, echo=FALSE}
+
+par(mfrow=c(1,2))
+hist(hotel_data$StaysInWeekNights, main = "Histogram of Stays In Week Nights", xlab = "Stays In Week Nights", col="cyan")
+boxplot(hotel_data$StaysInWeekNights, main = "Boxplot of Stays In Week Nights", xlab = "Stays In Week Nights", col="cyan")
+table(hotel_data$StaysInWeekNights)
+hotel_data = hotel_data[-head(order(-hotel_data$StaysInWeekNights),5),]
+hotel_data$StaysInWeekNights = sqrt(hotel_data$StaysInWeekNights)
+```
+
+- There appears to be right skewness in StaysInWeekNights
+- Most of the guests have 1-3 weeknight stays
+- Due to the presence of 0 in the data, log transformation isn’t applied 
+- 4 extreme outliers (>=40) are removed 
+
+
+### 3.2.5 Adults
+```{r Adults, echo=FALSE}
+
+par(mfrow=c(1,2))
+hist(hotel_data$Adults, main = "Histogram of Adults", xlab = "Adults", col="cyan", xlim = c(0, 10))
+boxplot(hotel_data$Adults, main = "Boxplot of Adults", xlab = "Adults", col="cyan")
+table(hotel_data$Adults)
+
+hotel_data = hotel_data[-head(order(-hotel_data$Adults),12),]
+```
+
+- There appears to be right skewness in Adults
+- Most of the bookings have 1-2 adults
+- Due to the presence of 0 in the data, log transformation isn’t applied 
+- 12 extreme outliers (>20) are removed
+
+ 
+### 3.2.6 Children
+```{r Children, echo=FALSE}
+
+par(mfrow=c(1,2))
+table(hotel_data$Children)
+hist(hotel_data$Children, main = "Histogram of Children", xlab = "Children", col="cyan")
+boxplot(hotel_data$Children, main = "Boxplot of Children", xlab = "Children", col="cyan")
+
+hotel_data = hotel_data[-head(order(-hotel_data$Children),3),]
+```
+
+- There appears to be right skewness in Children
+- Most of the bookings have 0-2 Children
+- Due to the presence of 0 in the data, log transformation isn’t applied 
+- 3 extreme outliers (>5) are removed
+
+
+
+### 3.2.7 If a guest has stayed at the hotel before (IsRepeatedGuest)
+```{r IsRepeatedGuest, echo=FALSE}
+
+ctable = table(hotel_data$IsRepeatedGuest, hotel_data$IsCanceled)
+for(row in 1:2){
+  row_sum = sum(ctable[row,])
+  for(col in 1:2){
+    ctable[row,col] = ctable[row,col]/row_sum
+  }
+}
+
+ctable
+
+par(mfrow=c(1,2))
+barplot(ctable[1,], col = 'cyan', xlab = "City Hotel")
+barplot(ctable[2,], col = 'blue', xlab = "Resort Hotel")
+par(mfrow=c(1,1))
+
+```
+
+
+There seems to be a higher rate of repeated guest for city hotels compared to resort hotel with about 38% repeated guest from city hotel and 14% repeated guest from resort hotel.
+
+### 3.2.8 Number of previous cancellation (Previous Cancellations)
+```{r Previous Cancellations, echo=FALSE}
+par(mfrow=c(1,2))
+table(hotel_data$PreviousCancellations)
+hist(hotel_data$PreviousCancellations, main = "Histogram of Previous Cancellations", xlab = "Previous Cancellations", col="cyan")
+boxplot(hotel_data$PreviousCancellations, main = "Boxplot of Previous Cancellations", xlab = "Previous Cancellations", col="cyan")
+hotel_data$PreviousCancellations = sqrt(hotel_data$PreviousCancellations)
+```
+ 
+ - Most of the bookings have 0-1 previous cancellation
+ - There appears to be right skewedness in Previous Cancellations 
+ - Square root transform was used
+ - No extreme values were removed
+
+
+### 3.2.9 Number of previous non-cancellation (Previous Bookings not Canceled)
+```{r Previous Booking not Canceled, echo=FALSE}
+
+par(mfrow=c(1,2))
+table(hotel_data$PreviousBookingsNotCanceled)
+hist(hotel_data$PreviousBookingsNotCanceled, main = "Histogram of Previous Bookings not Canceled", xlab = "Previous Bookings not Canceled", col="cyan")
+boxplot(hotel_data$PreviousBookingsNotCanceled, main = "Boxplot of Previous Bookings not Canceled", xlab = "Previous Bookings not Canceled", col="cyan")
+hotel_data$PreviousBookingsNotCanceled = sqrt(hotel_data$PreviousBookingsNotCanceled)
+```
+ 
+- There appears to be right skewness in PreviousBookingsNotCanceled
+- Most of the bookings have 0-1 previous non-cancellation
+- Due to the presence of 0 in the data, log transformation isn’t applied 
+- No outlier is removed
+
+
+### 3.2.10 Number of booking change (Booking Changes)
+```{r Booking Changes, echo=FALSE}
+
+par(mfrow=c(1,2))
+table(hotel_data$BookingChanges)
+hist(hotel_data$BookingChanges, main = "Histogram of Booking Changes", xlab = "Booking Changes", col="cyan")
+boxplot(hotel_data$BookingChanges, main = "Boxplot of Booking Changes", xlab = "Booking Changes", col="cyan")
+hotel_data = hotel_data[-head(order(-hotel_data$BookingChanges),1),]
+```
+
+ - Most of the bookings have 0-2 booking changes
+ - There appears to be right skewedness in Booking Changes 
+ - Square root transformation is applied
+ - 1 extreme values (>=20) was removed
+
+
+### 3.2.11 Average Daily Rate (ADR)
+```{r ADR, echo=FALSE}
+
+summary(hotel_data$ADR)
+hotel_data = subset(hotel_data, ADR > 0)
+summary(hotel_data$ADR)
+par(mfrow=c(1,2))
+hist(hotel_data$ADR, main = "Histogram of ADR", xlab = "ADR", col="cyan")
+boxplot(hotel_data$ADR, main = "Boxplot of ADR", xlab = "ADR", col="cyan")
+hotel_data = hotel_data[-head(order(-hotel_data$ADR),1),]
+hotel_data$ADR = log(hotel_data$ADR)
+```
+We removed the negative values of ADR as we are not interested in the special cases of getting paid to stay at hotels in cases like mystery shoppers or hotel reviewers and hotel brand ambassadors.
+
+ - There appears to be right skewedness in ADR 
+ - Log transformation (base e) was applied
+ - 1 extreme values (>5000) was removed
+ 
+
+### 3.2.12 Number of days between booking and arrival (Lead Time)
+```{r Lead Time, echo=FALSE}
+summary(hotel_data$LeadTime)
+par(mfrow=c(1,2))
+hist(hotel_data$LeadTime, main = "Histogram of Lead Time", xlab = "Lead Time", col="cyan")
+boxplot(hotel_data$LeadTime, main = "Boxplot of Lead Time", xlab = "Lead Time", col="cyan")
+
+hotel_data = hotel_data[-head(order(-hotel_data$LeadTime),1),]
+hotel_data$LeadTime = sqrt(hotel_data$LeadTime)
+```
+ 
+ - There appears to be right skewedness in Lead Time 
+ - Square root transformation was applied
+ - 2 extreme values were removed
+
+
+### 3.2.13 If reserved and assigned room type is the same  (RoomTypeMatch)
+```{r Room Type Match, echo=FALSE}
+
+ctable = table(hotel_data$IsCanceled, hotel_data$RoomTypeMatch)
+for(row in 1:2){
+  row_sum = sum(ctable[row,])
+  for(col in 1:2){
+    ctable[row,col] = ctable[row,col]/row_sum
+  }
+}
+
+ctable
+
+#ctable
+par(mfrow=c(1,2))
+colnames(ctable) = c("Not Matched", "Matched")
+barplot(ctable[1,], col = 'blue', xlab = "City Hotel")
+barplot(ctable[2,], col = 'cyan', xlab = "Resort Hotel")
+par(mfrow=c(1,1))
+```
+ 
+There seems to be a higher rate of room type match for resort hotels compared to city hotel with about 42% repeated guest from resort hotel and 5% repeated guest from city hotel.
+
+##3.3 Final Dataset for Analysis
+
+After the above analysis, the dataset is further reduced to 117,415 observations with the suggested log-transformation (base e)  applied to Average Daily Rate (ADR) and square root transformation applied to StaysInWeekendNights, StaysInWeekNights, PreviousCancellations, PreviousBookingsNotCanceled and LeadTime. 
+
+# 4 Statistical Analysis
+## 4.1 Correlation between *IsCanceled* against other Continous Variable
+```{r corrplot, echo = FALSE}
+
+numeric_hotel = hotel_data[,sapply(hotel_data, is.numeric)]
+numeric_hotel$IsCanceled = as.numeric(hotel_data$IsCanceled)
+colnames(numeric_hotel) <- c("LT", "WN", "NN", "A", "C", "PC", "PBNC", "BC", "ADR", "IC")
+
+# Create scatterplot in the upper triangle
+corrplot.mixed(cor(numeric_hotel), lower = "number", upper = "circle", number.cex = 0.5, lower.col = c('red','blue'))
+
+```
+
+- There appears to be positive correlations between LeadTime and IsCanceled
+- Stay In Weekend Nights is positively correlated to Stay in Weekday Nights
+
+## 4.2 Statistical Test
+
+### 4.2.1 Relation between *ADR* and *IsCanceled*
+
+ANOVA (Analysis of Variance) is a statistical method used to test for differences in means between two or more groups. In this case, we can use ANOVA to investigate if there is a significant difference in the average daily rate (ADR), after log transformation was applied, of hotel bookings between canceled and non-canceled bookings. ANOVA is appropriate for this analysis because we have two groups (canceled and non-canceled bookings), and we want to test if there is a significant difference in the mean ADR between these groups.
+
+ANOVA can help us to understand if the difference in the ADR between canceled and non-canceled bookings is due to random chance or if there is a real difference between the two groups. By using ANOVA, we can determine if the observed difference in ADR between canceled and non-canceled bookings is statistically significant or not, and this can help us to make more informed decisions regarding pricing and revenue management strategies for the hotel.
+```{r ADR~IsCanceled, echo = FALSE}
+summary(aov(ADR ~ IsCanceled, data = hotel_data))
+```
+
+The ANOVA test output shows that there is a significant difference between the means of the groups, as indicated by the very small p-value (<2e-16) for the IsCanceled variable. This suggests that the IsCanceled variable has a significant impact on the average daily rate (ADR) in the hotel dataset. The F value of 271.4 also suggests a strong difference between the groups. The sum of squares for IsCanceled and the residuals are 53 and 25,412, respectively. This indicates that the variation within groups (residuals) is much higher than the variation between groups (IsCanceled). Overall, these results suggest that  ADR is a significant predictor of IsCanceled in the datas
+
+### 4.2.2 Relation between *Hotel* and *IsCanceled*
+In this section we try to answer the question “Is there any association between type of hotel and IsCanceled”.
+As both variables are categorical variables, we can use a 2-way (contingency) table, as shown below.
+```{r Hotel~IsCanceled, echo = FALSE}
+ctable = table(hotel_data$Hotel, hotel_data$IsCanceled)
+ctable
+```
+
+To find any association between the type of wine and the quality of wine, we can perform the Pearson’s Chi-squared test.
+
+```{r Hotel~IsCanceled Chisq Test, echo = FALSE}
+chisq.test(ctable)
+```
+
+In this test we obtain a very low p-value (<2.2e-16), which indicates strong evidence against the null hypothesis of independence. Therefore, we can conclude that there is a significant association between the Hotel Type and whether a booking will be canceled.
+
+### 4.2.3 Relation between *PreviousCancellations* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on whether the guest made a previous cancellation. This variable represents the number of previous cancellations by the customer. It may have a significant impact on the cancellation rate, as customers who have a history of cancelling may be more likely to cancel their reservation in the future. A t-test and variance test can help determine if this variable is a significant predictor of cancellation.
+
+```{r PreviousCancellations~IsCanceled, echo = FALSE}
+t.test(PreviousCancellations ~ IsCanceled, data = hotel_data)
+var.test(PreviousCancellations ~ IsCanceled, data = hotel_data)
+```
+
+
+Based on the results of the Welch two-sample t-test, we can infer that there is a significant difference in the mean values of PreviousCancellations between IsCanceled=0 and IsCanceled=1 groups. The mean value of PreviousCancellations for IsCanceled=1 is much higher than that for IsCanceled=0, with a difference of approximately 0.14.
+
+Additionally, the F test to compare two variances indicates that the ratio of variances between the two groups is significantly different from 1, with a p-value < 2.2e-16. This suggests that the variance of PreviousCancellations for the IsCanceled=1 group is significantly different from that of the IsCanceled=0 group.
+
+Overall, these results suggest that PreviousCancellations may be a significant predictor of IsCanceled.
+
+### 4.2.4 Relation between *PreviousBookingsNotCanceled* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on whether the guest made a previous cancellation. This variable represents the number of previous bookings that were not cancelled by the customer. It may have a significant impact on the cancellation rate, as customers who have a history of not cancelling may be less likely to cancel their reservation in the future. A t-test and variance test can help determine if this variable is a significant predictor of cancellation.
+
+```{r PreviousBookingsNotCanceled~IsCanceled, echo = FALSE}
+t.test(PreviousBookingsNotCanceled ~ IsCanceled, data = hotel_data)
+var.test(PreviousBookingsNotCanceled ~ IsCanceled, data = hotel_data)
+```
+
+
+The Welch two-sample t-test result suggests that there is a significant difference in the means of "PreviousBookingsNotCanceled" variable between the "IsCanceled" groups. The p-value is less than 0.05, indicating strong evidence against the null hypothesis that there is no difference in means between the two groups.
+
+Furthermore, the F-test result to compare two variances indicates that the variances of the two groups are significantly different. The p-value is less than 0.05, indicating strong evidence against the null hypothesis that the variances of the two groups are equal. This suggests that a Welch t-test, which does not assume equal variances, is an appropriate test to compare the means of the two groups.
+
+
+### 4.2.5 Relation between *LeadTime* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on the leading time. We perform a simple linear regression between LeadTime and IsCanceled
+
+```{r LeadTime~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~LeadTime, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+From the coefficient estimates, we can infer that for every one unit increase in LeadTime, the log-odds of cancellation (IsCanceled being 1) decreases by 1.695977 
+
+The p-value for LeadTime is 2e-16, indicating that it is a statistically significant predictor of IsCanceled.
+
+
+### 4.2.6 Relation between *Arrival Date Month* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on the arrival month. We perform a simple linear regression between ArrivalDateMonth and IsCanceled
+```{r ArrivalDateMonth~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~ArrivalDateMonth, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+The logistic regression model shows that the month of arrival has a significant impact on the likelihood of cancellation. The intercept (-0.80340) represents the log-odds of cancellation for the reference month (January), and the estimated coefficients for the remaining months indicate how much the log-odds change relative to January.
+
+From the output, we can see that all months, except November, have a significant impact on the likelihood of cancellation. The positive coefficients indicate an increase in the log-odds of cancellation relative to January. For example, guests arriving in April have a 0.44444 increase in the log-odds of cancellation, holding all other variables constant.
+
+It's worth noting that the coefficient for November is not statistically significant (p-value = 0.31), indicating that there is no significant difference in the log-odds of cancellation for guests arriving in November compared to January.
+
+### 4.2.7 Relation between *Stays In Weekend Nights* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on how many nights they stay in the weekend. We perform a simple linear regression between StaysInWeekendNights and IsCanceled
+
+```{r StaysInWeekendNights~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~StaysInWeekendNights, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+
+- The logistic regression model shows that the variable "StaysInWeekendNights" is statistically significant in predicting the probability of a booking being canceled, as the p-value 5.83e-05 is lower than the typical significance level of 0.05. 
+- The coefficient estimate (-0.037183) suggests that the odds of cancellation decrease slightly as the number of weekend nights increases. 
+- Overall, this variable may not be a strong predictor of cancellation behavior on its own, and it may need to be considered in combination with other variables to better understand its relationship with cancellations.
+
+### 4.2.4 Relation between *Stays In Week Nights* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on how many nights they stay in the week. We perform a simple linear regression between StaysInWeekNights and IsCanceled
+```{r StaysInWeekNights~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~StaysInWeekNights, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+StaysInWeekNights has a coefficient of 0.13336, the p-value of <2e-16 is lesser than the typical significance level of 0.05 which shows that this variable is statistically significant. This suggests that the number of week nights stayed does have a significant effect on the likelihood of a booking being canceled, with an increase in the number of week nights leading to an increase in the likelihood of cancellation.
+
+### 4.2.8 Relation between *Adults* and *IsCanceled*
+In this section we determine whether the booking cancelation depends on how many adults are staying. We perform a simple linear regression between Adults and IsCanceled
+```{r Adults~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~Adults, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+
+The output shows that the coefficient estimate for Adults is 0.24633, which means that for each additional adult in the booking, the log-odds of cancellation increase by 0.24633 The p-value of <2e-16 indicates that this effect is statistically significant.
+
+### 4.2.9 Relation between *Children* and *IsCanceled*
+In this section we determine whether the booking cancelation depends on how many childrens are staying. We perform a simple linear regression between Children and IsCanceled
+```{r Children~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~Children, hotel_data, family = "binomial")
+summary(lmodel)
+par(mfrow=c(2,2))
+plot(lmodel)
+```
+
+The p-value for the variable is 0.255, which indicates that the variable "Children" is not statistically significant in predicting the response variable "IsCanceled". Therefore, it is likely that the variable "Children" is not a strong predictor of cancellation behavior in this dataset.
+
+### 4.2.10 Relation between *IsRepeatedGuest* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on whether it was a repeated guest. We perform a simple linear regression between IsRepeatedGuest and IsCanceled
+```{r IsRepeatedGuest~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~IsRepeatedGuest, hotel_data, family = "binomial")
+summary(lmodel)
+```
+
+The p-value for the coefficient is <2e-16 which indicates that the variable "IsRepeatedGuest" is statistically significant in predicting the response variable "IsCanceled". Therefore, it is likely that the variable "IsRepeatedGuest" is a strong predictor of cancellation behavior in this dataset.
+
+
+
+### 4.2.11 Relation between *BookingChanges* and *IsCanceled*
+
+In this section we determine whether the booking cancelation depends on whether it was affected by the number of changes requested by the guest. We perform a simple linear regression between BookingChanges and IsCanceled
+```{r BookingChanges~IsCanceled, echo = FALSE}
+lmodel = glm(IsCanceled~BookingChanges, hotel_data, family = "binomial")
+summary(lmodel)
+```
+
+The coefficient estimate for BookingChanges is -0.727233, which suggests that as the number of booking changes increases, the log-odds of cancellation decrease. The intercept coefficient (-0.388081) represents the estimated log-odds of cancellation when BookingChanges is zero.
+
+The p-values associated with both coefficients are very small (<2e-16), indicating that both variables are statistically significant predictors of IsCanceled.
+
+
+### 4.2.12 Relation between *RoomTypeMatch* and *IsCanceled*
+In this section we try to answer the question “Is there any association between type of RoomTypeMatch and IsCanceled”.
+As both variables are categorical variables, we can use a 2-way (contingency) table, as shown below.
+```{r RoomTypeMatch~IsCanceled, echo = FALSE}
+ctable <- table(hotel_data$RoomTypeMatch, hotel_data$IsCanceled)
+dimnames(ctable) <- list(RoomTypeMatch = c("Different Types", "Same Types"), IsCanceled = c("No", "Yes"))
+ctable
+
+```
+
+To find any association between the type of wine and the quality of wine, we can perform the Pearson’s Chi-squared test.
+```{r RoomTypeMatch~IsCanceled Chisq Test, echo = FALSE}
+chisq.test(ctable)
+```
+
+The output indicates that a Pearson's Chi-squared test with Yates' continuity correction was performed on the ctable contingency table. The test statistic is 7017.4, with 1 degree of freedom, and the p-value is <2.2e-16, indicating a highly significant association between the variables RoomTypeMatch and IsCanceled.
+
+## 4.3 Multiple Linear Regression
+In this Section, we attempt to build a multiple linear regression model for IsCanceled based on all the variables
+
+```{r glm, echo = FALSE}
+training.idx = sample(1:nrow(hotel_data), size = nrow(hotel_data) * 0.8)
+train.data = hotel_data[training.idx,]
+test.data = hotel_data[-training.idx,]
+
+model <- glm(IsCanceled ~., family = binomial, data = train.data)
+
+summary(model)
+
+predictions = predict(model, test.data)
+predicted.labels <- ifelse(predictions > 0.5, 1, 0)
+mean(predicted.labels == test.data$IsCanceled)
+```
+
+We get a mean accuracy of 70.3%
+
+### 4.3.1 Fine Tuning the Multiple Linear Regression Model
+
+We will now try to fine tune the model by using the step function. We use a backward elimination method to select the most appropriate model.
+```{r glm step, echo = FALSE}
+step(model, direction = "backward")
+```
+```{r glm fine tune, echo = FALSE}
+new_model <- glm(IsCanceled ~ LeadTime + ArrivalDateMonth + StaysInWeekendNights + 
+                   StaysInWeekNights + Adults + Children + IsRepeatedGuest + 
+                   PreviousCancellations + PreviousBookingsNotCanceled + BookingChanges + 
+                   ADR + Hotel + RoomTypeMatch+ 
+                   I(LeadTime^2) + I(PreviousCancellations^2) + I(PreviousBookingsNotCanceled^2)+ I(ADR^2), family = binomial, data = train.data)
+
+summary(new_model)
+
+predictions = predict(new_model, test.data)
+predicted.labels <- ifelse(predictions > 0.5, 1, 0)
+mean(predicted.labels == test.data$IsCanceled)
+```
+
+### 4.3.2 Comparison with another model
+We have a slight improvement in accuracy after fine tuning but it is not very significant. In this section we will try to explore other prediction models instead. We will attempt to use Random Forest, a machine learning algorithm that works by constructing multiple decision trees during training time, and outputting the class that is the mode of the classes (classification) or mean prediction (regression) of the individual trees. Each tree in the random forest is built using a random subset of the training data and a random subset of the features in the dataset. During prediction, each decision tree in the random forest independently predicts the class of the input data point and the class with the most votes (classification) or mean prediction (regression) is outputted as the final prediction of the random forest model.
+```{r model comparison, echo = FALSE}
+
+
+selected_cols <- c("LeadTime", "ArrivalDateMonth", "StaysInWeekendNights", 
+                   "StaysInWeekNights", "IsRepeatedGuest", "PreviousCancellations", 
+                   "PreviousBookingsNotCanceled", "BookingChanges", "ADR", 
+                   "Hotel", "RoomTypeMatch", "IsCanceled")
+
+# Train the random forest model
+rf_model <- randomForest(IsCanceled ~ ., data = train.data[, selected_cols])
+
+# Make predictions on test data
+rf_pred <- predict(rf_model, newdata = test.data[, selected_cols])
+
+# Calculate accuracy
+rf_acc <- mean(rf_pred == test.data$IsCanceled)
+cat("Random Forest accuracy:", rf_acc, "\n")
+
+```
+
+We can see that the accuracy is now much higher at 78.6% as opposed to the multi linear regression model of around 70%. This is because Random Forests can perform better than a linear regression model in situations where the relationship between the predictors and the outcome variable is complex and nonlinear, or when there are interactions between the predictors. This is because Random Forests can capture complex relationships between variables through non-linear combinations of the predictors and can handle interactions between variables more effectively. In contrast, linear regression models assume a linear relationship between the predictors and the outcome variable and can struggle to capture complex and non-linear relationships. 
+
+# 5 Conclusion and Discussion
+
+In conclusion, we attempted to build a multiple linear regression model to predict hotel cancellations based on various variables. In the multiple linear regression model for predicting hotel cancellations, after using the step function for fine-tuning, the significant predictors were identified based on their p-values in the model summary. The significant predictors were found to be:
+
+- LeadTime: The number of days between the booking date and the arrival date. A longer lead time was found to be associated with a higher likelihood of cancellation, indicating that customers may be more likely to cancel bookings made further in advance.
+
+- PreviousCancellations: The number of previous cancellations by the customer. A higher number of previous cancellations was found to be associated with a higher likelihood of cancellation, indicating that customers who have cancelled bookings before may be more likely to cancel future bookings.
+
+- PreviousBookingsNotCanceled: The number of previous bookings that were not canceled by the customer. A lower number of previous bookings that were not canceled was found to be associated with a higher likelihood of cancellation, suggesting that customers who have a history of canceling bookings may be more likely to cancel future bookings.
+
+- ADR: The average daily rate, which represents the average price per night paid by the customer. A higher ADR was found to be associated with a lower likelihood of cancellation, indicating that customers who are paying a higher price for their bookings may be less likely to cancel.
+
+These predictors were found to be statistically significant in predicting hotel cancellations based on their p-values in the multiple linear regression model. Understanding these significant predictors can help hotel management to identify potential risk factors for cancellations and take appropriate measures to mitigate them, such as offering incentives for customers with longer lead times, addressing concerns of customers with previous cancellations, or providing value-added services to customers with higher ADRs to reduce the likelihood of cancellations.
+
+After fine-tuning the model using backward elimination, we achieved a modest improvement in accuracy. However, we also explored an alternative approach using Random Forest, a machine learning algorithm, which resulted in a significantly higher accuracy of 78.6% compared to the linear regression model. This demonstrates that Random Forest is a more effective approach for predicting hotel cancellations in this case, as it can capture complex and non-linear relationships between variables and handle interactions more effectively. Therefore, considering the higher accuracy of the Random Forest model, it may be a better choice for predicting hotel cancellations in practice. 
